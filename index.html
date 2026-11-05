@@ -30,6 +30,8 @@ html,body{margin:0}
   --shadow:0 1px 2px rgba(0,0,0,.3); color-scheme:dark}
 *{box-sizing:border-box}
 [hidden]{display:none!important}
+body.ro [data-newcat],body.ro .opt.add,body.ro [data-del]{display:none!important}
+.robadge{display:inline-flex;align-items:center;gap:6px;background:var(--amber-soft);color:var(--amber);border-radius:999px;padding:6px 12px;font-weight:600;font-size:12.5px}
 body{background:var(--bg);color:var(--ink);font-family:var(--font);font-size:14px;line-height:1.45}
 .ms{font-family:"Material Symbols Rounded";font-weight:normal;font-style:normal;font-size:20px;line-height:1;display:inline-block;white-space:nowrap;direction:ltr;-webkit-font-feature-settings:"liga";font-feature-settings:"liga";overflow:hidden;width:1em}
 button{font:inherit;color:inherit;cursor:pointer}
@@ -195,6 +197,7 @@ input.big{font-size:26px;font-weight:700;padding:10px 12px}
   <div class="hdr">
     <div class="sun" aria-hidden="true"><span class="ms" id="sunIc">wb_sunny</span></div>
     <div class="grow"><h1 id="hTitle">Hola, Homero</h1><p id="hSub">Así van tus finanzas este mes.</p></div>
+    <span class="robadge" id="roBadge" hidden><span class="ms" style="font-size:16px">visibility</span>Solo lectura</span>
     <div class="datepill"><span class="ms">calendar_today</span><span id="todayLbl"></span></div>
     <div class="pick" id="monthPick"><button class="ib" id="prevM" aria-label="Mes anterior"><span class="ms">chevron_left</span></button><b id="mLabel">—</b><button class="ib" id="nextM" aria-label="Mes siguiente"><span class="ms">chevron_right</span></button></div>
   </div>
@@ -640,20 +643,20 @@ let rt;addEventListener("resize",()=>{clearTimeout(rt);rt=setTimeout(render,150)
 render();
 
 /* ---------- conexión con Google Sheets ---------- */
-const DEFAULT_API="";   // opcional: pega aquí la URL de tu Apps Script para no tener que escribirla en cada dispositivo
+const DEFAULT_API="https://script.google.com/macros/s/AKfycbxg5A-hhZuf-dt7YkW4ccBAvgeRuv0qjfsdTVevJAlAgSJo9651AD85PvU19F3OQvE3UA/exec";   // PEGA AQUÍ entre las comillas tu URL /exec. Así quien entre (tu papá, por ejemplo) solo tiene que escribir el PIN
 const ls={get:k=>{try{return localStorage.getItem(k)}catch(e){return null}},set:(k,v)=>{try{localStorage.setItem(k,v)}catch(e){}},del:k=>{try{localStorage.removeItem(k)}catch(e){}}};
-let API=ls.get("plata_api")||DEFAULT_API,PIN=ls.get("plata_pin")||"";
-function apply(j){S.config=j.config||{};S.deudas=(S.config.deudas||[]).map(d=>Object.assign({},d));S.movs=j.movs||[];
-  if(j.sheetUrl){const l=$("#sheetLink");l.href=j.sheetUrl;l.hidden=false}$("#fab").hidden=false;$("#status").hidden=true;render()}
+let API=DEFAULT_API||ls.get("plata_api")||"",PIN=ls.get("plata_pin")||"";
+function apply(j){S.role=j.role||"admin";canWrite=S.role==="admin";document.body.classList.toggle("ro",!canWrite);$("#roBadge").hidden=canWrite;S.config=j.config||{};S.deudas=(S.config.deudas||[]).map(d=>Object.assign({},d));S.movs=j.movs||[];
+  const l=$("#sheetLink");if(j.sheetUrl){l.href=j.sheetUrl;l.hidden=false}else l.hidden=true;$("#fab").hidden=!canWrite;$("#status").hidden=true;render()}
 async function apiLoad(){const r=await fetch(API+(API.includes("?")?"&":"?")+"pin="+encodeURIComponent(PIN)+"&t="+Date.now());const j=await r.json();if(!j.ok)throw j;apply(j)}
-async function apiPost(body){const r=await fetch(API,{method:"POST",headers:{"Content-Type":"text/plain;charset=utf-8"},body:JSON.stringify(Object.assign({},body,{pin:PIN}))});const j=await r.json();if(!j.ok)throw j;apply(j)}
+async function apiPost(body){if(!canWrite)throw{error:"solo-lectura"};const r=await fetch(API,{method:"POST",headers:{"Content-Type":"text/plain;charset=utf-8"},body:JSON.stringify(Object.assign({},body,{pin:PIN}))});const j=await r.json();if(!j.ok)throw j;apply(j)}
 function login(msg){
-  openSheet(`<h2 style="margin:0 0 4px">Conecta tu Google Sheet</h2><p style="color:var(--muted);margin:0 0 12px">Se guarda en este dispositivo. Solo lo pides una vez.</p>
+  openSheet(`<h2 style="margin:0 0 4px">${DEFAULT_API?"Entrar":"Conecta tu Google Sheet"}</h2><p style="color:var(--muted);margin:0 0 12px">${DEFAULT_API?"Escribe tu PIN.":"Se guarda en este dispositivo. Solo lo pides una vez."}</p>
    ${msg?`<div class="banner">${esc(msg)}</div>`:""}
-   <label class="f" for="lApi">URL de la aplicación web (Apps Script)</label><input id="lApi" placeholder="https://script.google.com/macros/s/…/exec" value="${esc(API)}">
+   <div ${DEFAULT_API?"hidden":""}><label class="f" for="lApi">URL de la aplicación web (Apps Script)</label><input id="lApi" placeholder="https://script.google.com/macros/s/…/exec" value="${esc(API)}"></div>
    <label class="f" for="lPin" style="margin-top:10px">PIN</label><input id="lPin" type="password" inputmode="numeric" value="${esc(PIN)}">
    <div class="err" id="lErr"></div><button class="btn pri" id="lOk" style="width:100%;justify-content:center;padding:12px">Entrar</button>`);
-  $("#lOk").onclick=async()=>{const a=$("#lApi").value.trim(),p=$("#lPin").value.trim();if(!/^https:\/\/script\.google(usercontent)?\.com\//.test(a))return $("#lErr").textContent="Pega la URL que termina en /exec.";if(!p)return $("#lErr").textContent="Escribe tu PIN.";
+  $("#lOk").onclick=async()=>{const a=DEFAULT_API||$("#lApi").value.trim(),p=$("#lPin").value.trim();if(!DEFAULT_API&&!/^https:\/\/script\.google(usercontent)?\.com\//.test(a))return $("#lErr").textContent="Pega la URL que termina en /exec.";if(!p)return $("#lErr").textContent="Escribe tu PIN.";
     $("#lOk").disabled=true;API=a;PIN=p;try{await apiLoad();ls.set("plata_api",a);ls.set("plata_pin",p);closeSheet();toast("Conectado")}catch(e){$("#lOk").disabled=false;$("#lErr").textContent=e&&e.error==="pin"?"PIN incorrecto.":"No se pudo conectar. Revisa la URL y que la implementación sea para “Cualquier usuario”."}};
 }
 $("#logout").onclick=()=>{ls.del("plata_pin");PIN="";S.config=null;S.movs=[];$("#fab").hidden=true;render();login()};
