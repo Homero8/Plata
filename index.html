@@ -30,7 +30,7 @@ html,body{margin:0}
   --shadow:0 1px 2px rgba(0,0,0,.3); color-scheme:dark}
 *{box-sizing:border-box}
 [hidden]{display:none!important}
-body.ro [data-newcat],body.ro .opt.add,body.ro [data-del]{display:none!important}
+body.ro [data-newcat],body.ro [data-repay],body.ro .opt.add,body.ro [data-del]{display:none!important}
 .robadge{display:inline-flex;align-items:center;gap:6px;background:var(--amber-soft);color:var(--amber);border-radius:999px;padding:6px 12px;font-weight:600;font-size:12.5px}
 body{background:var(--bg);color:var(--ink);font-family:var(--font);font-size:14px;line-height:1.45}
 .ms{font-family:"Material Symbols Rounded";font-weight:normal;font-style:normal;font-size:20px;line-height:1;display:inline-block;white-space:nowrap;direction:ltr;-webkit-font-feature-settings:"liga";font-feature-settings:"liga";overflow:hidden;width:1em}
@@ -251,7 +251,7 @@ input.big{font-size:26px;font-weight:700;padding:10px 12px}
       <div class="filters">
         <div><label class="f" for="fFrom">Desde</label><input type="date" id="fFrom"></div>
         <div><label class="f" for="fTo">Hasta</label><input type="date" id="fTo"></div>
-        <div><label class="f" for="fTipo">Tipo</label><select id="fTipo"><option value="">Todos</option><option value="ingreso">Ingresos</option><option value="gasto">Gastos</option><option value="ahorro">Ahorro</option><option value="pago">Deudas</option></select></div>
+        <div><label class="f" for="fTipo">Tipo</label><select id="fTipo"><option value="">Todos</option><option value="ingreso">Ingresos</option><option value="gasto">Gastos</option><option value="ahorro">Ahorro</option><option value="pago">Deudas</option><option value="prestamo">Préstamos</option></select></div>
         <div><label class="f" for="fCat">Categoría</label><select id="fCat"></select></div>
         <div><label class="f" for="fQ">Buscar</label><input id="fQ" placeholder="Leiria, cerveza…"></div>
       </div>
@@ -271,9 +271,10 @@ input.big{font-size:26px;font-weight:700;padding:10px 12px}
   <!-- BOTES -->
   <section class="view" id="v-botes" hidden>
     <div class="g2 eq">
-      <div class="card"><div class="ct"><h2>Botes de ahorro</h2></div><p class="cs">Saldo actual, meta y fecha estimada con tu plan</p><div id="botesFull"></div></div>
-      <div class="card"><div class="ct"><h2>Deudas</h2><button class="link" data-newcat="deuda">+ Nueva deuda</button><div class="seg" id="debtSeg"><button data-d="act" class="on">Activas</button><button data-d="arch">Archivadas</button></div></div><div id="debtsFull" style="margin-top:12px"></div></div>
+      <div class="card"><div class="ct"><h2>Botes de ahorro</h2><button class="link" data-newcat="bote">+ Nuevo bote</button></div><p class="cs">Saldo actual, meta y fecha estimada con tu plan. Toca el lápiz para cambiar meta o aporte.</p><div id="botesFull"></div></div>
+      <div class="card"><div class="ct"><h2>Deudas</h2><button class="link" data-newcat="deuda">+ Nueva deuda</button></div><div class="ct" style="margin-top:6px"><span></span><div class="seg" id="debtSeg"><button data-d="act" class="on">Activas</button><button data-d="arch">Archivadas</button></div></div><div id="debtsFull" style="margin-top:12px"></div></div>
     </div>
+    <div class="card" style="margin-bottom:16px"><div class="ct"><h2>Me deben</h2><div class="seg" id="loanSeg"><button data-l="act" class="on">Pendientes</button><button data-l="done">Devueltos</button></div></div><p class="cs" id="loanSub">Plata que prestaste</p><div id="loansFull"></div></div>
     <div class="card"><div class="ct"><h2>Proyección de tus ahorros</h2></div><p class="cs">Si sigues el plan, sin contar rentabilidad</p><div class="leg"><span><i style="background:var(--blue)"></i>Todos tus botes</span><span><i style="background:var(--amber)"></i>Meta del fondo de emergencia</span></div><div class="chart" id="proj"></div></div>
   </section>
 
@@ -317,11 +318,12 @@ const planEn=(list,m)=>{let v=0;(list||[]).forEach(p=>{if(p.desde<=m)v=p.mensual
 const inMonth=m=>S.movs.filter(x=>(x.fecha||"").slice(0,7)===m);
 const isSpend=x=>x.tipo==="gasto"&&!x.desdeBote;
 
-function totals(m){let inc=0,gas=0,apo=0,ret=0,pag=0;const byCat={};
+function totals(m){let inc=0,gas=0,apo=0,ret=0,pag=0,pre=0;const byCat={};
   inMonth(m).forEach(x=>{const a=+x.importe||0;
     if(x.tipo==="ingreso")inc+=a;else if(x.tipo==="gasto"){if(!x.desdeBote)gas+=a;byCat[x.cat]=(byCat[x.cat]||0)+a}
-    else if(x.tipo==="aporte")apo+=a;else if(x.tipo==="retiro")ret+=a;else if(x.tipo==="pago")pag+=a});
-  return{inc,gas,apo,ret,pag,out:gas+pag,save:apo-ret,byCat,left:inc+ret-gas-apo-pag}}
+    else if(x.tipo==="aporte")apo+=a;else if(x.tipo==="retiro")ret+=a;else if(x.tipo==="pago")pag+=a;
+    else if(x.tipo==="prestamo"&&!x.bote)pre+=a;else if(x.tipo==="cobro"&&!x.bote)pre-=a});
+  return{inc,gas,apo,ret,pag,pre,out:gas+pag,save:apo-ret,byCat,left:inc+ret-gas-apo-pag-pre}}
 function firstMonth(){let f=S.config?.inicio||"";S.movs.forEach(x=>{const m=(x.fecha||"").slice(0,7);if(m&&(!f||m<f))f=m});return f||mk(now)}
 function carry(m){let c=0,k=firstMonth();let guard=0;while(k<m&&guard++<240){c+=totals(k).left;k=addM(k,1)}return c}
 function win6(){const f=firstMonth();let s=addM(S.month,-5);if(s<f)s=f;return Array.from({length:6},(_,i)=>addM(s,i))}
@@ -366,7 +368,8 @@ function statusFor(m){const ms=inMonth(m).slice().sort((a,b)=>(a.fecha||"").loca
 function flowsOf(items){let out=0,inA=0,inCF=0;items.forEach(({p})=>{const a=+p.importe||0;if(p.tipo==="ingreso"){if(p.cat==="in-alimentacion")inCF+=a;else inA+=a}else if(p.tipo==="gasto"&&p.cat==="alimentacion"){}else out+=a});return{out,inA,inCF}}
 function netActual(m){let acct=0,cf=0;inMonth(m).forEach(x=>{const a=+x.importe||0;
   if(x.tipo==="ingreso"){if(x.cat==="in-alimentacion")cf+=a;else acct+=a}else if(x.tipo==="gasto"){if(x.desdeBote)return;if(x.cat==="alimentacion")cf-=a;else acct-=a}
-  else if(x.tipo==="aporte"||x.tipo==="pago")acct-=a;else if(x.tipo==="retiro")acct+=a});return{acct,cf}}
+  else if(x.tipo==="aporte"||x.tipo==="pago")acct-=a;else if(x.tipo==="retiro")acct+=a;
+  else if(x.tipo==="prestamo"&&!x.bote)acct-=a;else if(x.tipo==="cobro"&&!x.bote)acct+=a});return{acct,cf}}
 function ledger(m){let acct=0,cf=0,k=firstMonth(),g=0;while(k<=m&&g++<240){const n=netActual(k);acct+=n.acct;cf+=n.cf;if(cf<0){acct+=cf;cf=0}k=addM(k,1)}return{acct,cf}}
 const _bal={};
 function balance(m){const cur=mk(now);const key=m+"|"+S.movs.length+"|"+(S.config?.programados||[]).length;if(_bal[key])return _bal[key];
@@ -375,7 +378,10 @@ function balance(m){const cur=mk(now);const key=m+"|"+S.movs.length+"|"+(S.confi
   else if(m===cur){const l=ledger(m);r={cuenta:l.acct,cf:l.cf,libre:l.acct+fl.inA-fl.out,cfLibre:l.cf+fl.inCF,pend,st,fl,kind:"cur"}}
   else{const pv=balance(addM(m,-1)),n=netActual(m);const cuenta=pv.libre+n.acct,cf=Math.max(0,pv.cfLibre+n.cf);r={cuenta,cf,libre:cuenta+fl.inA-fl.out,cfLibre:cf+fl.inCF,pend,st,fl,kind:"fut"}}
   return _bal[key]=r}
-function boteSaldo(b){let s=+b.inicial||0;S.movs.forEach(x=>{const a=+x.importe||0;if(x.tipo==="aporte"&&x.bote===b.id)s+=a;if(x.tipo==="retiro"&&x.bote===b.id)s-=a;if(x.tipo==="gasto"&&x.desdeBote===b.id)s-=a});return s}
+function boteSaldo(b){let s=+b.inicial||0;S.movs.forEach(x=>{const a=+x.importe||0;if(x.tipo==="aporte"&&x.bote===b.id)s+=a;if(x.tipo==="retiro"&&x.bote===b.id)s-=a;if(x.tipo==="gasto"&&x.desdeBote===b.id)s-=a;if(x.tipo==="prestamo"&&x.bote===b.id)s-=a;if(x.tipo==="cobro"&&x.bote===b.id)s+=a});return s}
+/* préstamos que hiciste (me deben) */
+function loans(){return S.movs.filter(x=>x.tipo==="prestamo").map(l=>{const dev=S.movs.filter(c=>c.tipo==="cobro"&&c.ref===l._id).reduce((s,c)=>s+(+c.importe||0),0);return{l,dev,falta:Math.max(0,(+l.importe||0)-dev)}}).sort((a,b)=>(b.l.fecha||"").localeCompare(a.l.fecha||""))}
+const origenName=id=>id?(bote(id)?.nombre||"bote"):"dinero del mes";
 const pagado=d=>S.movs.filter(x=>x.tipo==="pago"&&x.deuda===d.id).reduce((s,x)=>s+(+x.importe||0),0);
 const done=d=>pagado(d)>=(+d.total||0)-0.005;
 
@@ -499,10 +505,12 @@ function eta(b){const meta=+b.meta||0;let s=boteSaldo(b);if(!meta)return"";if(s>
 function rGoals(sel,compact){
   $(sel).innerHTML=S.config.botes.map(b=>{const s=boteSaldo(b),meta=+b.meta||0,r=meta?Math.min(1,Math.max(0,s/meta)):0,pm=planEn(b.plan,S.month);
     return`<div class="goal"><div class="gi" style="background:${b.color}22;color:${b.color}"><span class="ms">${esc(b.icon||"savings")}</span></div><div>
-     <div class="gtop"><b>${esc(b.nombre)}</b>${meta?`<span class="num" style="color:var(--muted);font-size:12.5px">${Math.round(r*100)}%</span>`:""}</div>
+     <div class="gtop"><b>${esc(b.nombre)}</b><span style="display:inline-flex;gap:6px;align-items:center">${meta?`<span class="num" style="color:var(--muted);font-size:12.5px">${Math.round(r*100)}%</span>`:""}${!compact&&canWrite?`<button class="ib" data-edb="${esc(b.id)}" aria-label="Editar bote" style="width:28px;height:28px"><span class="ms" style="font-size:17px">edit</span></button>`:""}</span></div>
      <div class="gsub num">${eur(s)}${meta?" / "+eur0(meta):""}${compact?"":(b.nota?" · "+esc(b.nota):"")}</div>
      ${meta?`<div class="track"><i style="width:${(r*100).toFixed(1)}%;background:${b.color}"></i></div>`:""}
-     <div class="gpct"><span>${meta?esc(eta(b)):esc(b.nota||"")}</span>${pm?`<span>este mes: ${eur(pm)}</span>`:""}</div></div></div>`}).join("");
+     <div class="gpct"><span>${meta?esc(eta(b)):(compact?esc(b.nota||""):"")}</span>${pm?`<span>${eur(pm)}/mes</span>`:""}</div></div></div>`}).join("")
+   +(compact?(()=>{const t=loans().reduce((s,o)=>s+o.falta,0);return t>0?`<div class="goal"><div class="gi" style="background:#8B5CF622;color:#8B5CF6"><span class="ms">handshake</span></div><div><div class="gtop"><b>Me deben</b><span class="num" style="font-weight:600">${eur(t)}</span></div><div class="gsub">${loans().filter(o=>o.falta>0).length} préstamo(s) pendiente(s)</div></div></div>`:""})():"");
+  $$(sel+" [data-edb]").forEach(x=>x.onclick=()=>editBote(bote(x.dataset.edb)));
 }
 function rActivity(){
   const ms=S.movs.slice().sort(sortDesc).slice(0,5);const el=$("#activity");
@@ -519,9 +527,10 @@ function rDebts(sel,mode,compact){
   if(!list.length){el.innerHTML=`<div class="empty">${mode==="act"?"Sin deudas activas.":"Todavía no has terminado de pagar ninguna deuda."}</div>`;return}
   el.innerHTML=list.map(d=>{const tot=+d.total||0,p=pagado(d),f=Math.max(0,tot-p),r=tot?p/tot:1;
     return`<div class="goal"><div class="gi" style="background:var(--red-soft);color:var(--red)"><span class="ms">${esc(d.icon||"credit_card")}</span></div><div>
-     <div class="gtop"><b>${esc(d.nombre)}</b><span class="num" style="font-weight:600">${f?"faltan "+eur(f):"pagada"}</span></div>
+     <div class="gtop"><b>${esc(d.nombre)}</b><span style="display:inline-flex;gap:6px;align-items:center"><span class="num" style="font-weight:600">${f?"faltan "+eur(f):"pagada"}</span>${!compact&&canWrite?`<button class="ib" data-edd="${esc(d.id)}" aria-label="Editar deuda" style="width:28px;height:28px"><span class="ms" style="font-size:17px">edit</span></button>`:""}</span></div>
      <div class="gsub">${esc(d.nota||"")}</div><div class="track"><i style="width:${(r*100).toFixed(1)}%;background:var(--red)"></i></div>
      <div class="gpct"><span class="num">pagado ${eur(p)} de ${eur(tot)}</span>${d.fin?`<span>termina ${esc(d.fin)}</span>`:""}</div></div></div>`}).join("");
+  $$(sel+" [data-edd]").forEach(x=>x.onclick=()=>editDebt(deuda(x.dataset.edd)));
 }
 
 /* rows */
@@ -533,6 +542,8 @@ function label(x){
   if(x.tipo==="aporte"){const b=bote(x.bote);return{cat:"Ahorro",col:b?.color||"#3B7BF6",ic:"savings",sub:b?.nombre||"",sign:-1}}
   if(x.tipo==="retiro"){const b=bote(x.bote);return{cat:"Sacado de bote",col:b?.color||"#3B7BF6",ic:"output",sub:b?.nombre||"",sign:1}}
   if(x.tipo==="pago")return{cat:"Deuda",col:"#E5484D",ic:"credit_card",sub:deuda(x.deuda)?.nombre||"",sign:-1};
+  if(x.tipo==="prestamo")return{cat:"Préstamo",col:"#8B5CF6",ic:"handshake",sub:"a "+(x.sub||"alguien"),sign:-1,extra:"desde "+origenName(x.bote)};
+  if(x.tipo==="cobro")return{cat:"Te devolvió",col:"#8B5CF6",ic:"handshake",sub:x.sub||"",sign:1,extra:"a "+origenName(x.bote)};
   return{cat:"",col:"#8A93AE",ic:"help",sub:"",sign:-1};
 }
 const rowHtml=withDel=>x=>{const l=label(x);const d=x.fecha||"";
@@ -552,7 +563,7 @@ function rMovs(){
   fillCatFilter();if(!$("#fFrom").dataset.init){setQuick("mes");$("#fFrom").dataset.init=1}
   const f=$("#fFrom").value,t=$("#fTo").value,tp=$("#fTipo").value,c=$("#fCat").value,q=$("#fQ").value.trim().toLowerCase();
   let ms=S.movs.filter(x=>(!f||x.fecha>=f)&&(!t||x.fecha<=t));
-  if(tp)ms=ms.filter(x=>tp==="ahorro"?(x.tipo==="aporte"||x.tipo==="retiro"):x.tipo===tp);
+  if(tp)ms=ms.filter(x=>tp==="ahorro"?(x.tipo==="aporte"||x.tipo==="retiro"):tp==="prestamo"?(x.tipo==="prestamo"||x.tipo==="cobro"):x.tipo===tp);
   if(c)ms=ms.filter(x=>x.cat===c);
   if(q)ms=ms.filter(x=>[x.desc,x.sub,label(x).cat,label(x).sub].join(" ").toLowerCase().includes(q));
   ms.sort(sortDesc);
@@ -597,8 +608,94 @@ function rAnalisis(){
 }
 
 /* botes */
+function rLoans(){
+  const all=loans(),mode=S.loan||"act",list=all.filter(o=>mode==="act"?o.falta>0.004:o.falta<=0.004),el=$("#loansFull");
+  $$("#loanSeg button").forEach(b=>b.classList.toggle("on",b.dataset.l===mode));
+  const tot=all.reduce((s,o)=>s+o.falta,0);$("#loanSub").textContent=tot>0?`Te deben ${eur(tot)} en total`:"Nadie te debe plata ahora mismo";
+  if(!list.length){el.innerHTML=`<div class="empty">${mode==="act"?"Sin préstamos pendientes. Para registrar uno: Registrar → Préstamo.":"Todavía no te han devuelto ningún préstamo."}</div>`;return}
+  el.innerHTML=list.map(({l,dev,falta})=>{const tot=+l.importe||0,r=tot?dev/tot:1,d=l.fecha||"";
+    return`<div class="goal"><div class="gi" style="background:#8B5CF622;color:#8B5CF6"><span class="ms">handshake</span></div><div>
+     <div class="gtop"><b>${esc(l.sub||"Alguien")}</b><span style="display:inline-flex;gap:8px;align-items:center"><span class="num" style="font-weight:600">${falta>0.004?"te debe "+eur(falta):"devuelto"}</span>${falta>0.004&&canWrite?`<button class="paybtn" data-repay="${esc(l._id)}">Me pagó</button>`:""}</span></div>
+     <div class="gsub">${esc(l.desc||"Préstamo")} · ${+d.slice(8)} ${MES[+d.slice(5,7)-1]?.slice(0,3)||""} ${d.slice(0,4)} · salió de ${esc(origenName(l.bote))}</div>
+     <div class="track"><i style="width:${(r*100).toFixed(1)}%;background:#8B5CF6"></i></div>
+     <div class="gpct"><span class="num">devuelto ${eur(dev)} de ${eur(tot)}</span></div></div></div>`}).join("");
+  el.querySelectorAll("[data-repay]").forEach(b=>b.onclick=()=>repay(all.find(o=>o.l._id===b.dataset.repay)));
+}
+function repay(o){if(!o)return;const l=o.l;
+  openSheet(`<div class="ct"><h2>${esc(l.sub)} te devolvió</h2><button class="ib" id="rX" aria-label="Cerrar"><span class="ms">close</span></button></div>
+   <p style="color:var(--muted);margin:6px 0 0">Te debe ${eur(o.falta)}. Si te devolvió una parte, cambia el importe; el resto queda pendiente.</p>
+   <div class="step" style="display:grid;grid-template-columns:minmax(0,1.2fr) minmax(0,1fr);gap:10px"><div><label class="f" for="rA">Importe (€)</label><input id="rA" class="big num" inputmode="decimal" value="${esc(String(Math.round(o.falta*100)/100).replace(".",","))}"></div><div><label class="f" for="rD">Fecha</label><input id="rD" type="date" value="${todayStr}" style="height:56px"></div></div>
+   <div class="step"><label class="f" for="rTo">¿A dónde va la plata?</label><select id="rTo"><option value="">Dinero del mes${!l.bote?" (de donde salió)":""}</option>${S.config.botes.map(b=>`<option value="${esc(b.id)}"${l.bote===b.id?" selected":""}>${esc(b.nombre)}${l.bote===b.id?" (de donde salió)":""}</option>`).join("")}</select></div>
+   <div class="err" id="rE"></div><button class="btn pri" id="rOk" style="width:100%;justify-content:center;padding:12px">Registrar devolución</button>`);
+  $("#rX").onclick=closeSheet;
+  $("#rOk").onclick=async()=>{const a=parseFloat($("#rA").value.replace(",","."));const E=$("#rE");if(!(a>0))return E.textContent="Pon un importe mayor que 0.";if(a>o.falta+0.004)return E.textContent=`Solo te debe ${eur(o.falta)}.`;if(!$("#rD").value)return E.textContent="Elige la fecha.";
+    const doc={tipo:"cobro",ref:l._id,sub:l.sub,importe:Math.round(a*100)/100,fecha:$("#rD").value,desc:"Devolución de "+l.sub,creado:new Date().toISOString()};const to=$("#rTo").value;if(to)doc.bote=to;
+    $("#rOk").disabled=true;try{await apiPost({action:"add",movs:[doc]});closeSheet();toast(a>=o.falta-0.004?"Préstamo devuelto":"Devolución parcial registrada")}catch(e){$("#rOk").disabled=false;E.textContent="No se pudo guardar."}};
+}
+/* capacidad de ahorro y edición de botes */
+function capacity(exceptId){const m=addM(mk(now),2);let inc=0,out=0;
+  (S.config.programados||[]).forEach(p=>{if(p.meses&&p.meses.length)return;if(p.hasta)return;if(p.desde&&p.desde>m)return;const a=+p.importe||0;
+    if(p.tipo==="ingreso"){if(p.cat!=="in-alimentacion")inc+=a}else out+=a});
+  const otros=(S.config.botes||[]).filter(b=>b.id!==exceptId).reduce((s,b)=>s+planEn(b.plan,m),0),vs=+S.config.vidaSocial||200;
+  return{inc,out,otros,vs,libre:inc-out-otros-vs}}
+function planFrom(b,m,v){return (b.plan||[]).filter(x=>x.desde<m).concat({desde:m,mensual:v})}
+function etaWith(b,meta,v){const t=Object.assign({},b,{meta,plan:planFrom(b,mk(now),v)});return meta?eta(t):""}
+function editBote(b){const isNew=!b;const B=Object.assign({nombre:"",meta:"",color:PALETTE[(S.config.botes||[]).length%PALETTE.length],icon:"savings"},b||{});const cm=mk(now);
+  const cap=capacity(B.id);const saldo=isNew?0:boteSaldo(B);const tmp=Object.assign({},B,{id:B.id||"__new"});
+  const num=v=>parseFloat(String(v||"").replace(",","."))||0;
+  const info=()=>{const meta=num($("#bM").value),ap=num($("#bA").value),s0=isNew?num($("#bI")?.value):saldo;tmp.inicial=isNew?s0:B.inicial;
+    const falta=Math.max(0,meta-s0);let rec=0;if(falta>0&&cap.libre>0){rec=Math.ceil(falta/12/10)*10;if(rec>cap.libre)rec=Math.max(10,Math.floor(cap.libre/10)*10)}
+    const opts=[...new Set([Math.round(rec/2/10)*10,rec,rec+50,rec+100].filter(v=>v>0))].sort((x,y)=>x-y);
+    const et=v=>etaWith(tmp,meta,v);
+    $("#bInfo").innerHTML=`<div class="banner step" style="background:var(--blue-soft)">${meta?`Te faltan <b>${eur(falta)}</b>. `:""}Con tus ingresos fijos (${eur0(cap.inc)}), pagos fijos (${eur0(cap.out)}), tus otros botes (${eur0(cap.otros)}) y ${eur0(cap.vs)} para vida social, te quedan <b>~${eur0(Math.max(0,cap.libre))}/mes</b> en un mes normal.
+      ${cap.libre<=0?"<br>Ahora mismo no hay margen: tendrías que bajar otro bote o un gasto.":meta&&falta>0?`<br>Te recomiendo <b>${eur0(rec)}/mes</b>: ${esc(et(rec).toLowerCase())}.`:""}</div>
+     ${meta&&falta>0&&opts.length?`<div class="opts step">${opts.map(v=>`<button type="button" class="opt${Math.abs(v-ap)<0.01?" on":""}" data-ap="${v}">${eur0(v)}/mes · ${esc(et(v).replace("Llegas en ","").replace("Sin fecha con el plan actual","sin fecha"))}</button>`).join("")}</div>`:""}
+     <p style="font-size:13px;margin:12px 0 0">${meta?(falta>0?`Con ${eur0(ap)}/mes: <b>${esc(et(ap))}</b>.`:"Ya tienes la meta cubierta."):"Sin meta: el bote solo acumula."} El aporte se usa desde ${esc(mLabel(cm))} en Pagos del mes y en la proyección.</p>`;
+    $$("#bInfo [data-ap]").forEach(x=>x.onclick=()=>{$("#bA").value=x.dataset.ap;info()});};
+  openSheet(`<div class="ct"><h2>${isNew?"Nuevo bote":"Editar "+esc(B.nombre)}</h2><button class="ib" id="bX" aria-label="Cerrar"><span class="ms">close</span></button></div>
+   ${isNew?"":`<p style="color:var(--muted);margin:6px 0 0">Saldo actual: <b class="num">${eur(saldo)}</b></p>`}
+   <div class="step"><label class="f" for="bN">Nombre</label><input id="bN" value="${esc(B.nombre)}" placeholder="Ej.: Fondo para el carro"></div>
+   <div class="step" style="display:grid;grid-template-columns:1fr 1fr;gap:10px"><div><label class="f" for="bM">Meta (€, vacío = sin meta)</label><input id="bM" class="num" inputmode="decimal" value="${esc(B.meta?String(B.meta).replace(".",","):"")}"></div><div><label class="f" for="bA">Aporte mensual (€)</label><input id="bA" class="num" inputmode="decimal" value="${esc(String(planEn(B.plan,cm)||0).replace(".",","))}"></div></div>
+   ${isNew?`<div class="step"><label class="f" for="bI">¿Ya tienes algo guardado en este bote? (€)</label><input id="bI" class="num" inputmode="decimal" placeholder="0"></div>`:""}
+   <div id="bInfo"></div>
+   <div class="err" id="bE"></div><div style="display:flex;gap:8px;flex-wrap:wrap">${!isNew&&Math.abs(saldo)<0.005?`<button class="btn danger" id="bDel">Eliminar</button>`:""}<button class="btn pri" id="bOk" style="flex:1;justify-content:center">Guardar</button></div>`);
+  info();["#bM","#bA","#bI"].forEach(id=>$(id)&&$(id).addEventListener("input",info));
+  $("#bX").onclick=closeSheet;
+  if($("#bDel"))$("#bDel").onclick=async()=>{const n=cloneCfg();n.botes=n.botes.filter(x=>x.id!==B.id);try{await saveConfig(n);closeSheet();toast("Bote eliminado")}catch(e){$("#bE").textContent="No se pudo eliminar."}};
+  $("#bOk").onclick=async()=>{const nm=$("#bN").value.trim(),meta=num($("#bM").value),ap=parseFloat($("#bA").value.replace(",","."));const E=$("#bE");
+    if(!nm)return E.textContent="Ponle un nombre.";if(!(ap>=0))return E.textContent="El aporte tiene que ser 0 o más.";
+    const n=cloneCfg();let t=n.botes.find(x=>x.id===B.id);
+    if(!t){t={id:slug(nm)+"-"+Date.now().toString(36).slice(-4),color:B.color,icon:"savings",inicial:Math.max(0,num($("#bI")?.value)),plan:[]};n.botes.push(t)}
+    t.nombre=nm;t.meta=meta>0?Math.round(meta*100)/100:0;t.plan=planFrom(t,cm,Math.round(ap*100)/100);
+    $("#bOk").disabled=true;try{await saveConfig(n);closeSheet();toast(isNew?"Bote creado":"Bote actualizado")}catch(e){$("#bOk").disabled=false;E.textContent="No se pudo guardar."}};
+}
+function editDebt(d){if(!d)return;const pr=(S.config.programados||[]).filter(p=>p.tipo==="pago"&&p.deuda===d.id).sort((a,b)=>(a.desde||"").localeCompare(b.desde||""))[0];
+  const cm=mk(now),paidNow=S.movs.some(x=>x.tipo==="pago"&&x.deuda===d.id&&(x.fecha||"").slice(0,7)===cm);
+  const last=(S.config.programados||[]).filter(p=>p.tipo==="pago"&&p.deuda===d.id).map(p=>p.hasta||"").sort().pop()||"";
+  let m0=paidNow?addM(cm,1):cm;if(pr?.desde&&pr.desde>m0)m0=pr.desde;const dia=pr?.dia||1;
+  let rest=0;if(last){let k=m0;while(k<=last&&rest<60){rest++;k=addM(k,1)}}if(!rest)rest=Math.max(1,+d.cuotas||1);
+  openSheet(`<div class="ct"><h2>Editar deuda</h2><button class="ib" id="ddX" aria-label="Cerrar"><span class="ms">close</span></button></div>
+   <p style="color:var(--muted);margin:6px 0 0">Ya pagaste ${eur(pagado(d))}. Las cuotas que faltan se recalculan en Pagos del mes.</p>
+   <div class="step"><label class="f" for="ddN">Nombre</label><input id="ddN" value="${esc(d.nombre)}"></div>
+   <div class="step" style="display:grid;grid-template-columns:1fr 1fr;gap:10px"><div><label class="f" for="ddT">Total (€)</label><input id="ddT" class="num" inputmode="decimal" value="${esc(String(d.total).replace(".",","))}"></div><div><label class="f" for="ddC">Cuotas que quedan</label><input id="ddC" type="number" min="1" max="60" value="${rest}"></div></div>
+   <div class="step" style="display:grid;grid-template-columns:1fr 1fr;gap:10px"><div><label class="f" for="ddM">Próxima cuota (mes)</label><input id="ddM" type="month" value="${esc(m0)}"></div><div><label class="f" for="ddD">Día de pago</label><input id="ddD" type="number" min="1" max="31" value="${esc(dia)}"></div></div>
+   <div class="step"><label class="f" for="ddNo">Nota</label><input id="ddNo" value="${esc(d.nota||"")}"></div>
+   <div class="err" id="ddE"></div><div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn danger" id="ddDel">Eliminar</button><button class="btn pri" id="ddOk" style="flex:1;justify-content:center">Guardar</button></div>`);
+  $("#ddX").onclick=closeSheet;
+  $("#ddDel").onclick=async()=>{const n=cloneCfg();n.deudas=n.deudas.filter(x=>x.id!==d.id);n.programados=(n.programados||[]).filter(p=>!(p.tipo==="pago"&&p.deuda===d.id));try{await saveConfig(n);closeSheet();toast("Deuda eliminada")}catch(e){$("#ddE").textContent="No se pudo eliminar."}};
+  $("#ddOk").onclick=async()=>{const nm=$("#ddN").value.trim(),tot=parseFloat($("#ddT").value.replace(",",".")),c=parseInt($("#ddC").value,10),m=$("#ddM").value,dd=parseInt($("#ddD").value,10),E=$("#ddE");
+    if(!nm)return E.textContent="Ponle un nombre.";if(!(tot>0))return E.textContent="Pon el total.";if(!(c>=1))return E.textContent="Pon las cuotas.";if(!m)return E.textContent="Elige el mes.";if(!(dd>=1&&dd<=31))return E.textContent="Día entre 1 y 31.";
+    const falta=Math.max(0,tot-pagado(d)),cuota=Math.round(falta/c*100)/100,last=addM(m,c-1);const n=cloneCfg();const t=n.deudas.find(x=>x.id===d.id);
+    t.nombre=nm;t.total=Math.round(tot*100)/100;t.nota=$("#ddNo").value.trim();t.fin=mLabel(last);t.cuotas=c;
+    const keep=(n.programados||[]).filter(p=>!(p.tipo==="pago"&&p.deuda===d.id&&(!p.hasta||p.hasta>=m)));
+    keep.forEach(p=>{if(p.tipo==="pago"&&p.deuda===d.id&&p.desde<m&&(!p.hasta||p.hasta>=m))p.hasta=addM(m,-1)});
+    const old=(n.programados||[]).filter(p=>p.tipo==="pago"&&p.deuda===d.id&&p.desde<m).map(p=>Object.assign({},p,{hasta:p.hasta&&p.hasta<m?p.hasta:addM(m,-1)}));
+    n.programados=(n.programados||[]).filter(p=>!(p.tipo==="pago"&&p.deuda===d.id)).concat(old);
+    if(falta>0)n.programados.push({id:"p-"+d.id+"-"+m,nombre:"Cuota "+nm,tipo:"pago",deuda:d.id,importe:cuota,dia:dd,desde:m,hasta:last});
+    $("#ddOk").disabled=true;try{await saveConfig(n);closeSheet();toast("Deuda actualizada")}catch(e){$("#ddOk").disabled=false;E.textContent="No se pudo guardar."}};
+}
 function rBotes(){
-  rGoals("#botesFull",false);$$("#debtSeg button").forEach(b=>b.classList.toggle("on",b.dataset.d===S.debt));rDebts("#debtsFull",S.debt,false);
+  rLoans();rGoals("#botesFull",false);$$("#debtSeg button").forEach(b=>b.classList.toggle("on",b.dataset.d===S.debt));rDebts("#debtsFull",S.debt,false);
   const bs=S.config.botes;let m=S.month>mk(now)?S.month:mk(now);const sal={};bs.forEach(b=>sal[b.id]=boteSaldo(b));
   const pts=[{l:MES[+m.slice(5)-1].slice(0,3),v:Object.values(sal).reduce((a,b)=>a+b,0),tip:""}];pts[0].tip=mLabel(m)+": "+eur(pts[0].v);
   for(let i=0;i<14;i++){m=addM(m,1);bs.forEach(b=>{sal[b.id]+=planEn(b.plan,m);(S.config.extras||[]).forEach(e=>{if(e.mes===m&&e.bote===b.id)sal[b.id]+=e.importe});(S.config.salidas||[]).forEach(e=>{if(e.mes===m&&e.bote===b.id)sal[b.id]-=e.importe})});
@@ -612,7 +709,7 @@ function rAjustes(){
   rProgs();$("#cfgG").innerHTML=blk(cG(),"gasto");$("#cfgI").innerHTML=blk(cI(),"ingreso");
   $$("[data-addsub]").forEach(b=>b.onclick=()=>{const[k,id]=b.dataset.addsub.split(":");askName("Nueva subcategoría","Ej.: Gas, Cine, Seguro…",async n=>{await addSub(k,id,n);toast("Subcategoría añadida")})});
 }
-$$("[data-newcat]").forEach(b=>b.onclick=()=>canWrite&&(b.dataset.newcat==="prog"?editProg(null):b.dataset.newcat==="deuda"?newDebt():askName("Nueva categoría de "+(b.dataset.newcat==="gasto"?"gasto":"ingreso"),"Ej.: Familia, Mascotas…",async n=>{await addCat(b.dataset.newcat,n);toast("Categoría añadida")})));
+$$("[data-newcat]").forEach(b=>b.onclick=()=>canWrite&&(b.dataset.newcat==="prog"?editProg(null):b.dataset.newcat==="bote"?editBote(null):b.dataset.newcat==="deuda"?newDebt():askName("Nueva categoría de "+(b.dataset.newcat==="gasto"?"gasto":"ingreso"),"Ej.: Familia, Mascotas…",async n=>{await addCat(b.dataset.newcat,n);toast("Categoría añadida")})));
 const PALETTE=["#3B7BF6","#22A06B","#E39B1A","#E5484D","#8B5CF6","#0EA5B7","#EC4899","#64748B","#F97316","#14B8A6"];
 const slug=s=>s.normalize("NFD").replace(/[̀-ͯ]/g,"").toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"").slice(0,40)||"cat";
 async function saveConfig(next){await apiPost({action:"config",config:next})}
@@ -647,7 +744,7 @@ function findProg(){const m=(F.fecha||todayStr).slice(0,7);const tipo=F.tipo==="
   const probe={tipo,cat:F.cat,sub:F.sub,bote:F.bote,deuda:F.deuda};return statusFor(m).find(i=>!i.mov&&sameKey(i.p,probe))?.p||null}
 function autoFill(){const p=findProg();if(p&&!String(F.importe||"").trim()){F.importe=String(p.importe).replace(".",",");if(!String(F.desc||"").trim())F.desc=p.nombre;F.prog=p}else if(!p)F.prog=null}
 function drawAdd(){
-  const tipos=[["gasto","Gasto","shopping_bag"],["ingreso","Ingreso","trending_up"],["ahorro","Ahorro","savings"],["pago","Deuda","credit_card"]];
+  const tipos=[["gasto","Gasto","shopping_bag"],["ingreso","Ingreso","trending_up"],["ahorro","Ahorro","savings"],["pago","Deuda","credit_card"],["prestamo","Préstamo","handshake"]];
   const cats=F.tipo==="ingreso"?cI():cG();const cat=cats.find(c=>c.id===F.cat);
   let mid="";
   if(F.tipo==="gasto"||F.tipo==="ingreso"){
@@ -657,18 +754,24 @@ function drawAdd(){
   }else if(F.tipo==="ahorro"){
     mid+=`<div class="step"><label class="f">2 · ¿Qué haces?</label><div class="opts"><button type="button" class="opt${F.accion==="aporte"?" on":""}" data-acc="aporte"><span class="ms" style="font-size:17px">south_east</span>Guardar en un bote</button><button type="button" class="opt${F.accion==="retiro"?" on":""}" data-acc="retiro"><span class="ms" style="font-size:17px">north_east</span>Sacar de un bote</button></div></div>
      <div class="step"><label class="f">3 · Bote</label><div class="opts">${S.config.botes.map(b=>`<button type="button" class="opt${F.bote===b.id?" on":""}" data-bote="${esc(b.id)}"><span class="ms" style="font-size:17px;color:${b.color}">${esc(b.icon||"savings")}</span>${esc(b.nombre)}</button>`).join("")}</div></div>`;
+  }else if(F.tipo==="prestamo"){
+    const people=[...new Set(S.movs.filter(x=>x.tipo==="prestamo").map(x=>x.sub).filter(Boolean))];
+    mid+=`<div class="step"><label class="f" for="aPer">2 · ¿A quién le prestaste?</label><input id="aPer" placeholder="Nombre" value="${esc(F.persona||"")}">${people.length?`<div class="opts" style="margin-top:7px">${people.map(p=>`<button type="button" class="opt${p===F.persona?" on":""}" data-per="${esc(p)}">${esc(p)}</button>`).join("")}</div>`:""}</div>
+     <div class="step"><label class="f">3 · ¿De dónde salió la plata?</label><div class="opts"><button type="button" class="opt${!F.origen?" on":""}" data-ori=""><span class="ms" style="font-size:17px">account_balance_wallet</span>Dinero del mes</button>${S.config.botes.map(b=>`<button type="button" class="opt${F.origen===b.id?" on":""}" data-ori="${esc(b.id)}"><span class="ms" style="font-size:17px;color:${b.color}">${esc(b.icon||"savings")}</span>${esc(b.nombre)} (${eur(boteSaldo(b))})</button>`).join("")}</div></div>`;
   }else{
     const act=S.deudas.filter(d=>!done(d));
     mid+=`<div class="step"><label class="f">2 · Deuda</label>${act.length?`<div class="opts">${act.map(d=>`<button type="button" class="opt${F.deuda===d.id?" on":""}" data-deuda="${esc(d.id)}">${esc(d.nombre)} · faltan ${eur((+d.total||0)-pagado(d))}</button>`).join("")}</div>`:`<div class="empty">No tienes deudas activas.</div>`}</div>`;
   }
   openSheet(`<div class="ct"><h2>Registrar</h2><button class="ib" id="aX" aria-label="Cerrar"><span class="ms">close</span></button></div>
-   <div class="step"><label class="f">1 · Tipo</label><div class="seg" style="display:flex">${tipos.map(([k,l,i])=>`<button type="button" data-tipo="${k}" class="${F.tipo===k?"on":""}" style="flex:1"><span class="ms" style="font-size:16px;vertical-align:-3px">${i}</span> ${l}</button>`).join("")}</div></div>
+   <div class="step"><label class="f">1 · Tipo</label><div class="seg" style="display:flex;flex-wrap:wrap">${tipos.map(([k,l,i])=>`<button type="button" data-tipo="${k}" class="${F.tipo===k?"on":""}" style="flex:1"><span class="ms" style="font-size:16px;vertical-align:-3px">${i}</span> ${l}</button>`).join("")}</div></div>
    ${mid}
    ${F.prog?`<div class="banner step" style="background:var(--blue-soft)">Pago programado: <b>${esc(F.prog.nombre)}</b> · previsto ${eur(+F.prog.importe||0)}. Si pagaste otro importe, cámbialo.</div>`:""}
    <div class="step" style="display:grid;grid-template-columns:minmax(0,1.2fr) minmax(0,1fr);gap:10px"><div><label class="f" for="aAmt">Importe (€)</label><input id="aAmt" class="big num" inputmode="decimal" placeholder="0,00" value="${esc(F.importe??"")}"></div><div><label class="f" for="aDate">Fecha</label><input id="aDate" type="date" value="${esc(F.fecha)}" style="height:56px"></div></div>
    <div class="step"><label class="f" for="aDesc">Descripción</label><input id="aDesc" placeholder="${F.tipo==="gasto"?"Pasajes a Leiria, cerveza con amigos…":"Opcional"}" value="${esc(F.desc??"")}"></div>
    <div class="err" id="aErr"></div><button class="btn pri" id="aSave" style="width:100%;justify-content:center;padding:13px">Guardar</button>`);
-  const keep=()=>{F.importe=$("#aAmt").value;F.fecha=$("#aDate").value;F.desc=$("#aDesc").value;if($("#aBote"))F.desdeBote=$("#aBote").value};
+  const keep=()=>{F.importe=$("#aAmt").value;F.fecha=$("#aDate").value;F.desc=$("#aDesc").value;if($("#aBote"))F.desdeBote=$("#aBote").value;if($("#aPer"))F.persona=$("#aPer").value};
+  $$("[data-per]").forEach(b=>b.onclick=()=>{keep();F.persona=b.dataset.per;drawAdd()});
+  $$("[data-ori]").forEach(b=>b.onclick=()=>{keep();F.origen=b.dataset.ori;drawAdd()});
   $("#aX").onclick=closeSheet;
   $$("[data-tipo]").forEach(b=>b.onclick=()=>{keep();F.tipo=b.dataset.tipo;F.cat=F.sub=undefined;drawAdd()});
   $$("[data-cat]").forEach(b=>b.onclick=()=>{keep();F.cat=b.dataset.cat;F.sub=undefined;drawAdd()});
@@ -684,6 +787,9 @@ function drawAdd(){
     const doc={importe:Math.round(a*100)/100,fecha:F.fecha,desc:(F.desc||"").trim(),creado:new Date().toISOString()};
     if(F.tipo==="gasto"||F.tipo==="ingreso"){if(!F.cat)return E.textContent="Elige una categoría.";if(!F.sub)return E.textContent="Elige una subcategoría.";doc.tipo=F.tipo;doc.cat=F.cat;doc.sub=F.sub;if(F.tipo==="gasto"&&F.desdeBote)doc.desdeBote=F.desdeBote}
     else if(F.tipo==="ahorro"){if(!F.bote)return E.textContent="Elige el bote.";doc.tipo=F.accion;doc.bote=F.bote}
+    else if(F.tipo==="prestamo"){const per=(F.persona||"").trim();if(!per)return E.textContent="Escribe a quién le prestaste.";
+      if(F.origen){const b=bote(F.origen);if(b&&boteSaldo(b)<doc.importe-0.004)return E.textContent=`En ${b.nombre} solo hay ${eur(boteSaldo(b))}.`}
+      doc.tipo="prestamo";doc.sub=per;if(F.origen)doc.bote=F.origen}
     else{if(!F.deuda)return E.textContent="Elige la deuda.";doc.tipo="pago";doc.deuda=F.deuda}
     $("#aSave").disabled=true;
     const pr=F.prog;
@@ -771,6 +877,7 @@ $$("#pagSeg button").forEach(b=>b.onclick=()=>{S.pag=b.dataset.p;rPagos(balance(
 $$("#trendSeg button").forEach(b=>b.onclick=()=>{S.trend=b.dataset.r;$$("#trendSeg button").forEach(x=>x.classList.toggle("on",x===b));rTrend()});
 $$("#anSeg button").forEach(b=>b.onclick=()=>{S.an=b.dataset.a;rAnalisis()});
 $$("#debtSeg button").forEach(b=>b.onclick=()=>{S.debt=b.dataset.d;rBotes()});
+$$("#loanSeg button").forEach(b=>b.onclick=()=>{S.loan=b.dataset.l;rLoans()});
 $$("#quick button").forEach(b=>b.onclick=()=>{setQuick(b.dataset.q);rMovs()});
 ["#fFrom","#fTo","#fTipo","#fCat"].forEach(s=>$(s).addEventListener("change",()=>{$$("#quick button").forEach(b=>b.classList.remove("on"));rMovs()}));
 $("#fQ").addEventListener("input",rMovs);
